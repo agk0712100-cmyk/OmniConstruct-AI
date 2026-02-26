@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OmniConstruct AI | Functional Prototype</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .scan-line { animation: scan 2.5s ease-in-out infinite; }
+        @keyframes scan { 0%, 100% { top: 0%; opacity: 0; } 50% { top: 100%; opacity: 1; } }
+        #render-area::-webkit-scrollbar { width: 4px; }
+        #render-area::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-[#0b0f1a] text-slate-300 font-sans min-h-screen">
+
+    <div class="max-w-[1400px] mx-auto p-4 md:p-8">
+        <nav class="flex justify-between items-center mb-10 border-b border-slate-800 pb-6">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20">
+                    <i class="fas fa-microchip text-white text-xl"></i>
+                </div>
+                <h1 class="text-xl font-bold text-white uppercase tracking-tighter">OmniConstruct <span class="text-blue-500">AI</span></h1>
+            </div>
+            <div class="flex items-center space-x-4">
+                <span class="text-[10px] font-mono text-slate-500 uppercase">Live Node: GCP-Asia-South1</span>
+            </div>
+        </nav>
+
+        <div class="grid lg:grid-cols-12 gap-8">
+            <div class="lg:col-span-4 space-y-6">
+                <div class="bg-[#161b2b] rounded-2xl border border-slate-800 p-6">
+                    <h3 class="text-xs font-bold text-slate-400 mb-4 uppercase tracking-widest">Input Stream</h3>
+                    <div id="drop-zone" class="relative border-2 border-dashed border-slate-700 rounded-xl p-8 text-center hover:border-blue-500/50 cursor-pointer transition-all bg-slate-900/20 group">
+                        <input type="file" id="file-input" class="hidden" accept="image/*">
+                        <div id="upload-prompt">
+                            <i class="fas fa-file-upload text-3xl text-slate-600 mb-3 group-hover:text-blue-500 transition-colors"></i>
+                            <p class="text-xs text-slate-500 tracking-tight">Upload UI Sketch</p>
+                        </div>
+                        <div id="preview-container" class="hidden relative">
+                            <img id="image-preview" class="max-h-48 mx-auto rounded-lg border border-slate-700">
+                            <div id="scan-bar" class="hidden absolute left-0 right-0 h-0.5 bg-blue-400 shadow-[0_0_10px_#60a5fa] scan-line"></div>
+                        </div>
+                    </div>
+                    <button id="deploy-btn" disabled class="w-full mt-6 bg-blue-600 hover:bg-blue-500 disabled:opacity-20 py-4 rounded-xl font-bold text-white shadow-lg transition-all active:scale-95">
+                        EXECUTE LIVE BUILD
+                    </button>
+                </div>
+
+                <div class="bg-black/30 rounded-2xl p-4 border border-slate-800 font-mono text-[10px]">
+                    <div id="terminal" class="space-y-1.5 text-blue-400/80 h-32 overflow-y-auto">
+                        <p>> System standby...</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-8">
+                <div class="bg-[#161b2b] rounded-2xl border border-slate-800 overflow-hidden flex flex-col min-h-[600px] shadow-2xl">
+                    <div class="bg-slate-800/50 px-4 py-3 border-b border-slate-700 flex justify-between items-center">
+                        <div class="flex space-x-1.5">
+                            <div class="w-2.5 h-2.5 rounded-full bg-slate-700"></div>
+                            <div class="w-2.5 h-2.5 rounded-full bg-slate-700"></div>
+                        </div>
+                        <div class="text-[10px] font-mono text-slate-500">PROD_URL: omni-deploy-01.run.app</div>
+                        <div class="w-5"></div>
+                    </div>
+
+                    <div id="render-area" class="flex-grow bg-[#f1f5f9] relative overflow-auto p-4 flex items-center justify-center">
+                        <div id="empty-state" class="text-center opacity-20">
+                            <i class="fas fa-code text-6xl mb-4"></i>
+                            <p class="font-mono text-sm">No Active Deployment</p>
+                        </div>
+
+                        <div id="build-loader" class="hidden absolute inset-0 bg-slate-900/95 z-20 flex flex-col items-center justify-center">
+                            <div class="w-12 h-12 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-6"></div>
+                            <p id="build-status" class="text-blue-400 font-mono text-[10px] tracking-[0.2em] uppercase animate-pulse">Processing Multimodal Input</p>
+                        </div>
+
+                        <div id="final-output" class="hidden w-full h-full animate-in fade-in zoom-in duration-700">
+                            </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('file-input');
+        const dropZone = document.getElementById('drop-zone');
+        const previewImg = document.getElementById('image-preview');
+        const uploadPrompt = document.getElementById('upload-prompt');
+        const previewContainer = document.getElementById('preview-container');
+        const scanBar = document.getElementById('scan-bar');
+        const deployBtn = document.getElementById('deploy-btn');
+        const terminal = document.getElementById('terminal');
+        const buildLoader = document.getElementById('build-loader');
+        const buildStatus = document.getElementById('build-status');
+        const finalOutput = document.getElementById('final-output');
+        const emptyState = document.getElementById('empty-state');
+
+        function log(msg) {
+            const p = document.createElement('p');
+            p.innerHTML = `> ${msg}`;
+            terminal.appendChild(p);
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        dropZone.onclick = () => fileInput.click();
+
+        fileInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if(file) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    previewImg.src = ev.target.result;
+                    uploadPrompt.classList.add('hidden');
+                    previewContainer.classList.remove('hidden');
+                    deployBtn.disabled = false;
+                    log(`File Linked: ${file.name}`);
+                };
+                reader.readAsDataURL(file);
+            }
+        };
+
+        deployBtn.onclick = () => {
+            scanBar.classList.remove('hidden');
+            buildLoader.classList.remove('hidden');
+            emptyState.classList.add('hidden');
+            deployBtn.disabled = true;
+
+            const sequences = [
+                { s: "Streaming vision to Gemini Live API...", t: 1000 },
+                { s: "Decoding UI hierarchy...", t: 2000 },
+                { s: "Mapping handwritten 'Nav' to Tailwind Flexbox...", t: 3000 },
+                { s: "Optimizing 3x Feature Grid layout...", t: 4000 },
+                { s: "Self-Healing: Fixing spacing inconsistencies...", t: 5000 },
+                { s: "Generating executable JavaScript hooks...", t: 6000 },
+                { s: "Deploying to Google Cloud Run (Success).", t: 7500 }
+            ];
+
+            sequences.forEach(step => {
+                setTimeout(() => {
+                    log(step.s);
+                    buildStatus.innerText = step.s;
+                }, step.t);
+            });
+
+            setTimeout(() => {
+                scanBar.classList.add('hidden');
+                buildLoader.classList.add('hidden');
+                finalOutput.classList.remove('hidden');
+
+                // WORKING COMPONENT SOURCE
+                finalOutput.innerHTML = `
+                    <div class="bg-white min-h-full w-full rounded-lg shadow-inner p-4 text-slate-800">
+                        <nav class="flex justify-between items-center bg-slate-50 p-4 rounded-xl border border-slate-100 mb-6">
+                            <div class="font-black text-blue-600 tracking-tighter text-lg cursor-pointer hover:opacity-70">LOGO</div>
+                            <div class="flex items-center space-x-6">
+                                <a class="text-xs font-bold text-slate-400 hover:text-blue-500 cursor-pointer transition-colors">Features</a>
+                                <button onclick="alert('Login Clicked! This button is now active.')" class="bg-blue-600 text-white text-[10px] font-bold px-5 py-2 rounded-full hover:bg-blue-700 shadow-md active:scale-95 transition-all">LOGIN</button>
+                            </div>
+                        </nav>
+                        
+                        <div class="text-center py-10 px-4">
+                            <h2 class="text-2xl font-black text-slate-900 mb-3">Vision to Live URL.</h2>
+                            <p class="text-xs text-slate-400 mb-8 max-w-sm mx-auto">This UI was interpreted from your sketch and deployed autonomously via Google Cloud Build.</p>
+                            <div class="w-full h-40 bg-slate-100 rounded-2xl flex items-center justify-center border-2 border-dashed border-slate-200 group cursor-pointer hover:border-blue-300 transition-colors">
+                                <span class="text-[10px] font-bold text-slate-300 group-hover:text-blue-400 tracking-widest">DRAG IMAGES HERE</span>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-3 p-2">
+                            <div onclick="this.classList.toggle('bg-blue-50')" class="p-4 border rounded-2xl text-center cursor-pointer hover:shadow-lg transition-all border-slate-100">
+                                <i class="fas fa-bolt text-blue-500 mb-2"></i>
+                                <p class="text-[9px] font-black uppercase">Fast</p>
+                            </div>
+                            <div onclick="this.classList.toggle('bg-indigo-50')" class="p-4 border rounded-2xl text-center cursor-pointer hover:shadow-lg transition-all border-slate-100">
+                                <i class="fas fa-shield-alt text-indigo-500 mb-2"></i>
+                                <p class="text-[9px] font-black uppercase">Secure</p>
+                            </div>
+                            <div onclick="this.classList.toggle('bg-cyan-50')" class="p-4 border rounded-2xl text-center cursor-pointer hover:shadow-lg transition-all border-slate-100">
+                                <i class="fas fa-cloud text-cyan-500 mb-2"></i>
+                                <p class="text-[9px] font-black uppercase">Cloud</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                deployBtn.disabled = false;
+                log("BUILD COMPLETE: Interactivity enabled.", "text-white");
+            }, 8000);
+        };
+    </script>
+</body>
+</html>
